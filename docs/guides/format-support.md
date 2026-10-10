@@ -72,7 +72,7 @@ in the Dump column.
 | vpost    | Postprocessing Settings    | LUT image; applied in 3D      | yes     | `.vpost` + LUT `.raw`                                                                                        |
 | vpram    | Processing Graph Instance  | text                          | generic | -                                                                                                            |
 | vpsf     | Particle Snapshot (legacy) | text                          | generic | -                                                                                                            |
-| vpulse   | Pulse Graph                | graph                         | generic | - (graph view only)                                                                                          |
+| vpulse   | Pulse Graph                | graph                         | generic | `.vpulse` graph document                                                                                     |
 | vrman    | Resource Manifest          | text                          | yes     | KV3 text                                                                                                     |
 | vrmap    | Resource Remap Table       | text                          | generic | -                                                                                                            |
 | vrr      | Response Rules             | text                          | yes     | original rules script (byte-exact)                                                                           |
@@ -351,6 +351,7 @@ interpreted.
   resources they reference.
 - **Pulse graphs** (`vpulse`): reconstructed from bytecode into a readable node graph in the
   GUI, including control flow; there is no textual source export.
+  TODO: update documentation
 
 ## Per-Game Notes
 
