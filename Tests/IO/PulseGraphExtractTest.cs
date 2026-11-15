@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TUnit.Assertions.Enums;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.IO;
@@ -65,7 +66,7 @@ namespace Tests.IO
                 await Assert.That(condition.GetStringProperty("m_ThisInparamName")).IsEqualTo("m_bCondition");
                 await Assert.That(conditionSource.GetStringProperty("m_GenericNodeType")).IsEqualTo("CCSPointPulseAPI::GetIsWingman");
                 await Assert.That(Children(branch, "Connection_Outflow").Select(connection => connection.GetStringProperty("m_SourceOutflowName")))
-                    .IsEquivalentTo(["m_IsTrue", "m_IsFalse"]);
+                    .IsEquivalentTo(["m_IsTrue", "m_IsFalse"], StringComparer.Ordinal, CollectionOrdering.Any);
 
                 await Assert.That(nodes.Count(node => node.GetStringProperty("_class") == "Step_EntFire")).IsEqualTo(10);
             }
@@ -107,7 +108,7 @@ namespace Tests.IO
                     ["Outflow_Cycle"] = 1,
                     ["Outflow_Simultaneous"] = 1,
                     ["Step_FireCursors"] = 1,
-                });
+                }, EqualityComparer<KeyValuePair<string, int>>.Default, CollectionOrdering.Any);
 
                 // Method argument read through a connection, and the call passing it a literal
                 await Assert.That(Children(Node(document, 15), "Connection_Inparam").Single().GetStringProperty("m_SourceOutparamName")).IsEqualTo("amount");
@@ -118,7 +119,7 @@ namespace Tests.IO
                 await Assert.That(indexRead.GetInt32Property("m_SourceNode")).IsEqualTo(100);
                 await Assert.That(indexRead.GetStringProperty("m_SourceOutparamName")).IsEqualTo("Index");
 
-                await Assert.That(Node(document, 80).GetArray<int>("m_Cases")).IsEquivalentTo([1, 2]);
+                await Assert.That(Node(document, 80).GetArray<int>("m_Cases")).IsEquivalentTo([1, 2], EqualityComparer<int>.Default, CollectionOrdering.Any);
                 await Assert.That(Node(document, 140).GetSubCollection("m_Message").GetStringProperty("m_ValueSource")).IsEqualTo("local_name_ref");
                 await Assert.That(Node(document, 170).GetStringProperty("m_nCycleMode")).IsEqualTo("PulseCycleMode_t::SHUFFLED");
                 await Assert.That(Node(document, 190).GetStringProperty("m_nCallMode")).IsEqualTo("ASYNC_FIRE_AND_FORGET");
@@ -157,13 +158,13 @@ namespace Tests.IO
                     "CPulseCursorFuncs::KillCursorsWithTag",
                     "CPulseCursorFuncs::KillCursorsWithTag",
                     "CPulseCursorFuncs::TagCursor",
-                ]);
+                ], StringComparer.Ordinal, CollectionOrdering.Any);
 
                 // A literal passed to a port of any type states its own type
                 await Assert.That(tagValue.GetStringProperty("m_UserRefinedType")).IsEqualTo("PVAL_STRING");
 
                 // Variables read through Var Reference nodes keep those nodes
-                await Assert.That(randomIntInputs.Select(node => node.GetStringProperty("_class"))).IsEquivalentTo(["Value_VarReference", "Value_VarReference"]);
+                await Assert.That(randomIntInputs.Select(node => node.GetStringProperty("_class"))).IsEquivalentTo(["Value_VarReference", "Value_VarReference"], StringComparer.Ordinal, CollectionOrdering.Any);
                 await Assert.That(nodes.Single(node => node.GetInt32Property("m_NodeID") == 246579145).GetInt32Property("m_SourceID")).IsEqualTo(937282370);
             }
         }
