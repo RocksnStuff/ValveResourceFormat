@@ -350,8 +350,17 @@ public sealed partial class PulseGraphExtract
                 break;
 
             case "IMMEDIATE_HALT":
-            case "RETURN_VOID":
             case "RETURN_VALUE":
+                return false;
+
+            case "RETURN_VOID":
+                // A skipped node returns through its requirements skip point, the nodes after it compile to nothing
+                if (sequencePoint == "m_OptionalRequirementsCheckPointForInlineSkip" && nodes.TryGetValue(path.CurrentNode, out var skippedNode))
+                {
+                    skippedNode.Fields["m_bNodeSkip"] = true;
+                    Report($"Node {skippedNode.Id} is skipped, any nodes after it are not kept.");
+                }
+
                 return false;
 
             case "JUMP":
