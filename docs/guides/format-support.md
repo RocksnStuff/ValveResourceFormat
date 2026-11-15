@@ -76,7 +76,7 @@ in the Dump column.
 | vpost    | Postprocessing Settings    | LUT image; applied in 3D      | yes     | `.vpost` + LUT `.raw`                                                                                        |
 | vpram    | Processing Graph Instance  | text                          | generic | -                                                                                                            |
 | vpsf     | Particle Snapshot (legacy) | text                          | generic | -                                                                                                            |
-| vpulse   | Pulse Graph                | graph                         | generic | `.vpulse` graph document                                                                                     |
+| vpulse   | Pulse Graph                | graph                         | yes | `.vpulse` graph document                                                                                     |
 | vrman    | Resource Manifest          | text                          | yes     | KV3 text                                                                                                     |
 | vrmap    | Resource Remap Table       | text                          | generic | -                                                                                                            |
 | vrr      | Response Rules             | text                          | yes     | original rules script (byte-exact)                                                                           |
@@ -395,8 +395,9 @@ other graphs of the file or, for one graph per file, the graphs of the folder.
   manifests (`vpdi`) dump their listing; the pixels live in the separate `vtex`/`vsvg`
   resources they reference.
 - **Pulse graphs** (`vpulse`): reconstructed from bytecode into a readable node graph in the
-  GUI, including control flow; there is no textual source export.
-  TODO: update documentation
+  GUI, including control flow, and decompiled to a `.vpulse` graph document that
+  resourcecompiler builds back into the same bytecode.
+
 
 ## Per-Game Notes
 
