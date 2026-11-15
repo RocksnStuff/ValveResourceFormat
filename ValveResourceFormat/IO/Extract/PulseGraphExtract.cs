@@ -598,13 +598,7 @@ public sealed partial class PulseGraphExtract
         var pending = pendingFlowConnections.ToList();
         pendingFlowConnections.Clear();
 
-        foreach (var nodeId in pending.SelectMany(connection => new[] { connection.Source, connection.Target }).Distinct())
-        {
-            if (!nodes.ContainsKey(nodeId))
-            {
-                TryAddSkippedEntFire(nodeId);
-            }
-        }
+        AddSkippedEntFires();
 
         // A node that compiled to nothing, such as a skipped one, is left out and the flow through it is joined up
         var passedThrough = pending.Where(connection => !nodes.ContainsKey(connection.Source)).ToLookup(connection => connection.Source);
@@ -641,19 +635,31 @@ public sealed partial class PulseGraphExtract
 
     /// <summary>
     /// A skipped node compiles to nothing, but a skipped entity fire still lists the output connection it makes, which is
-    /// enough to bring it back. Its parameter value is not kept.
+    /// enough to bring it back, even when no flow reaches it. Its parameter value is not kept.
     /// </summary>
-    private void TryAddSkippedEntFire(int nodeId)
+    private void AddSkippedEntFires()
     {
-        var sourceOutput = $"Step_EntFire:{nodeId}";
-        var outputConnection = (graph.GetArray("m_OutputConnections") ?? [])
-            .FirstOrDefault(connection => connection.GetStringProperty("m_SourceOutput", string.Empty).EndsWith(sourceOutput, StringComparison.Ordinal));
+        const string SourcePrefix = "Step_EntFire:";
 
-        if (outputConnection == null)
+        foreach (var outputConnection in graph.GetArray("m_OutputConnections") ?? [])
         {
-            return;
-        }
+            // "Step_EntFire:<node id>", optionally prefixed with "<flow name> => "
+            var sourceOutput = outputConnection.GetStringProperty("m_SourceOutput", string.Empty);
+            var prefixIndex = sourceOutput.LastIndexOf(SourcePrefix, StringComparison.Ordinal);
 
+            if (prefixIndex < 0
+                || !ValueParsing.TryParseInt(sourceOutput.AsSpan(prefixIndex + SourcePrefix.Length), out var nodeId)
+                || nodes.ContainsKey(nodeId))
+            {
+                continue;
+            }
+
+            AddSkippedEntFire(nodeId, outputConnection);
+        }
+    }
+
+    private void AddSkippedEntFire(int nodeId, KVObject outputConnection)
+    {
         // The only sequence point left of the node is its outflow, so the cursor seems to arrive there
         var node = AddNode(nodeId, "Step_EntFire", isFlow: true);
         node.InflowName = "InDefault";

@@ -701,6 +701,11 @@ public sealed partial class PulseGraphExtract
                 node = AddNode(nodeId, "Step_FireCursors", isFlow: true);
                 node.Fields.Add("m_nChildCursors", cell.GetInt32Property("m_nChildCursors"));
                 node.InflowName = "Start";
+
+                if (!cell.GetBooleanProperty("m_bWaitForChildOutflows"))
+                {
+                    node.Fields.Add("m_nCallMode", "ASYNC_FIRE_AND_FORGET");
+                }
                 break;
 
             case "CPulseCell_Timeline":
