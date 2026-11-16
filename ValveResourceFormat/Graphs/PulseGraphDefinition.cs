@@ -203,14 +203,7 @@ internal sealed class PulseRegisterMap
             return [];
         }
 
-        var result = new List<(string Name, int Register)>();
-
-        foreach (var (name, register) in registerParams)
-        {
-            result.Add((name, (int)register));
-        }
-
-        return result;
+        return [.. registerParams.Select(static param => (param.Key, param.Value.ToInt32OrDefault()))];
     }
 }
 
@@ -317,6 +310,8 @@ internal sealed class PulseChunk
 
     public string RegisterType(int register) => Register(register)?.Type ?? "PVAL_INVALID";
 
+    public PulseValueType RegisterValueType(int register) => Register(register)?.ValueType ?? PulseValueType.PVAL_INVALID;
+
     public int RegisterWriteInstruction(int register) => Register(register)?.WrittenByInstruction ?? -1;
 
     /// <summary>The register an editor node port was compiled to, or -1.</summary>
@@ -359,7 +354,7 @@ internal sealed class PulseGraphDefinition
     public IReadOnlyList<PulseOutputConnection> OutputConnections { get; }
 
     private readonly IProgress<string>? progressReporter;
-    private readonly HashSet<string> reportedValueTypes = [];
+    private readonly HashSet<string> reportedMessages = [];
     private readonly CellOutflows?[] cellOutflows;
 
     // Outflows of a cell and the top level cell keys they were found under
@@ -435,12 +430,17 @@ internal sealed class PulseGraphDefinition
             return valueType;
         }
 
-        if (reportedValueTypes.Add(baseType))
-        {
-            progressReporter?.Report($"Unknown pulse value type \"{baseType}\".");
-        }
-
+        Report($"Unknown pulse value type \"{baseType}\".");
         return PulseValueType.PVAL_VOID;
+    }
+
+    /// <summary>Reports a diagnostic once, however many times it is raised.</summary>
+    public void Report(string message)
+    {
+        if (reportedMessages.Add(message))
+        {
+            progressReporter?.Report(message);
+        }
     }
 
     private CellOutflows GetCellOutflows(int cell)

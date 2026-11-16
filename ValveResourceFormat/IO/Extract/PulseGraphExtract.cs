@@ -20,7 +20,6 @@ public sealed class PulseGraphExtract
     public IProgress<string>? ProgressReporter { get; init; }
 
     private readonly KVObject graph;
-    private readonly HashSet<string> reportedMessages = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PulseGraphExtract"/> class.
@@ -63,7 +62,7 @@ public sealed class PulseGraphExtract
             }
         }
 
-        var walker = new PulseGraphWalker(definition, ProgressReporter);
+        var walker = new PulseGraphWalker(definition);
         walker.Walk();
 
         LayOut(walker);
@@ -88,7 +87,7 @@ public sealed class PulseGraphExtract
         {
             if (node.Instruction != null)
             {
-                Report($"Node {node.Id} stands for instruction {node.ClassName}, which no document node expresses, it is left out.");
+                ProgressReporter?.Report($"Node {node.Id} stands for instruction {node.ClassName}, which no document node expresses, it is left out.");
                 continue;
             }
 
@@ -117,14 +116,6 @@ public sealed class PulseGraphExtract
             {
                 editorNode.Position = new Vector2(MathF.Round(node.Position.X), MathF.Round(node.Position.Y));
             }
-        }
-    }
-
-    private void Report(string message)
-    {
-        if (reportedMessages.Add(message))
-        {
-            ProgressReporter?.Report(message);
         }
     }
 

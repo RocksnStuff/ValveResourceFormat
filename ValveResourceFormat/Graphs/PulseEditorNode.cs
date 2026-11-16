@@ -16,6 +16,25 @@ internal readonly record struct PulseOutflowLink(int Id, string Outflow, int Tar
 /// <param name="ThisPort">Input port of the reading node.</param>
 internal readonly record struct PulseInparamLink(int Id, int SourceNode, string SourcePort, string ThisPort);
 
+/// <summary>What a <see cref="PulseVariableLink"/> reads or writes.</summary>
+internal enum PulseVariableKind
+{
+    /// <summary>An entry of <c>m_Vars</c>, by its editor node id.</summary>
+    Variable,
+
+    /// <summary>A temporary variable, by the editor node id of the node declaring it.</summary>
+    TempVar,
+
+    /// <summary>An entry of <c>m_BlackboardReferences</c>, by its index.</summary>
+    BlackboardReference,
+}
+
+/// <summary>A read or write of a variable by an editor node.</summary>
+/// <param name="Kind">What <paramref name="Target"/> refers to.</param>
+/// <param name="Target">Editor node id, or index for a blackboard reference.</param>
+/// <param name="Port">Input port the value is read through, null for a write.</param>
+internal readonly record struct PulseVariableLink(PulseVariableKind Kind, int Target, string? Port);
+
 /// <summary>One node of the editor document a compiled Pulse graph was built from.</summary>
 internal sealed class PulseEditorNode(int id, string className)
 {
@@ -29,7 +48,7 @@ internal sealed class PulseEditorNode(int id, string className)
     /// <summary>The node's own document keys, with input ports as <c>m_ValueSource</c> tables.</summary>
     public KVObject Fields { get; } = KVObject.Collection();
 
-    public bool IsFlow { get; set; } = true;
+    public bool IsFlow { get; init; } = true;
     public bool IsEntry { get; set; }
 
     /// <summary>The cell class the node was compiled to, null for nodes with no cell.</summary>
@@ -49,18 +68,23 @@ internal sealed class PulseEditorNode(int id, string className)
 
     private readonly List<PulseOutflowLink> outflows = [];
     private readonly List<PulseInparamLink> inparams = [];
+    private readonly List<PulseVariableLink> variableLinks = [];
 
     public IReadOnlyList<PulseOutflowLink> Outflows => outflows;
     public IReadOnlyList<PulseInparamLink> Inparams => inparams;
 
+    /// <summary>Variables the node reads or writes, in the order its fields refer to them.</summary>
+    public IReadOnlyList<PulseVariableLink> VariableLinks => variableLinks;
+
+    public void AddVariableRead(PulseVariableKind kind, int target, string port) => variableLinks.Add(new PulseVariableLink(kind, target, port));
+
+    public void AddVariableWrite(PulseVariableKind kind, int target) => variableLinks.Add(new PulseVariableLink(kind, target, null));
+
     public void AddOutflowConnection(int connectionId, string outflow, int target, string inflow)
     {
-        foreach (var existing in outflows)
+        if (outflows.Exists(existing => existing.Outflow == outflow && existing.Target == target && existing.Inflow == inflow))
         {
-            if (existing.Outflow == outflow && existing.Target == target && existing.Inflow == inflow)
-            {
-                return;
-            }
+            return;
         }
 
         outflows.Add(new PulseOutflowLink(connectionId, outflow, target, inflow));

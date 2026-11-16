@@ -1,9 +1,7 @@
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Tests.Resources;
-using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.IO;
 using ValveResourceFormat.Serialization.KeyValues;
@@ -49,10 +47,7 @@ namespace Tests.IO
         {
             var (text, _) = Decompile("trooper_path_test.vpulse_c");
 
-            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
-            var document = KVSerializer.Create(KVSerializationFormat.KeyValues3Text).Deserialize(stream);
-
-            var reads = document.Root.GetArray("m_Children")
+            var reads = TestFixtures.ParseKV3(text).GetArray("m_Children")
                 .SelectMany(node => node.GetArray("m_Children") ?? [])
                 .Where(connection => connection.GetStringProperty("_class") == "Connection_Inparam" && connection.GetInt32Property("m_SourceNode") == 372291322)
                 .OrderBy(connection => connection.GetInt32Property("m_NodeID"))

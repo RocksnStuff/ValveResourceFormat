@@ -8,8 +8,7 @@ namespace ValveResourceFormat.Graphs;
 /// <param name="SourceNode">Editor node the flow leaves.</param>
 /// <param name="Outflow">Outflow of <paramref name="SourceNode"/> the flow leaves through.</param>
 /// <param name="Chunk">The chunk the flow enters.</param>
-/// <param name="Instruction">The instruction the flow enters at.</param>
-internal readonly record struct PulseUnwalkedFlow(int SourceNode, string Outflow, int Chunk, int Instruction);
+internal readonly record struct PulseUnwalkedFlow(int SourceNode, string Outflow, int Chunk);
 
 /// <summary>
 /// Rebuilds the editor nodes of a compiled Pulse graph. Every instruction keeps the editor node it came from and the
@@ -34,9 +33,6 @@ internal sealed partial class PulseGraphWalker
 
     public IReadOnlyList<PulseUnwalkedFlow> UnwalkedFlows => unwalkedFlows;
 
-    private readonly IProgress<string>? progressReporter;
-    private readonly HashSet<string> reportedMessages = [];
-
     // Editor node ids already present in the compiled graph, fresh ids are allocated past them
     private readonly HashSet<int> usedNodeIds = [];
     private int nextNodeId = 1;
@@ -50,26 +46,21 @@ internal sealed partial class PulseGraphWalker
     private readonly Dictionary<(int Node, string Port), PulseValueType> outputTypes = [];
     private readonly List<PulseUnwalkedFlow> unwalkedFlows = [];
 
-    public PulseGraphWalker(PulseGraphDefinition definition, IProgress<string>? progressReporter = null)
+    public PulseGraphWalker(PulseGraphDefinition definition)
     {
         Definition = definition;
-        this.progressReporter = progressReporter;
 
         CollectUsedNodeIds();
 
-        var cells = definition.Cells;
-        cellNodeIds = new int[cells.Count];
-
-        for (var i = 0; i < cells.Count; i++)
-        {
-            cellNodeIds[i] = KnownOrFreshNodeId(cells[i].GetInt32Property("m_nEditorNodeID", -1));
-        }
-
+        cellNodeIds = [.. definition.Cells.Select(cell => KnownOrFreshNodeId(cell.GetInt32Property("m_nEditorNodeID", -1)))];
         variableNodeIds = [.. definition.Vars.Select(variable => KnownOrFreshNodeId(variable.GetInt32Property("m_nEditorNodeID", -1)))];
         publicOutputNodeIds = [.. definition.PublicOutputs.Select(_ => AllocateNodeId())];
     }
 
     public bool TryGetNode(int id, out PulseEditorNode node) => nodes.TryGetValue(id, out node!);
+
+    /// <summary>The index into <c>m_PublicOutputs</c> of a public output's editor node id, or -1.</summary>
+    public int PublicOutputIndex(int nodeId) => Array.IndexOf(publicOutputNodeIds, nodeId);
 
     /// <summary>The type of a node's output port, as the register it was written to holds it.</summary>
     public PulseValueType OutputType(int node, string port) => outputTypes.GetValueOrDefault((node, port), PulseValueType.PVAL_VOID);
@@ -99,13 +90,7 @@ internal sealed partial class PulseGraphWalker
         RootNodeId = AllocateNodeId();
     }
 
-    private void Report(string message)
-    {
-        if (reportedMessages.Add(message))
-        {
-            progressReporter?.Report(message);
-        }
-    }
+    private void Report(string message) => Definition.Report(message);
 
     private void CollectUsedNodeIds()
     {
@@ -180,14 +165,7 @@ internal sealed partial class PulseGraphWalker
                 }
             }
 
-            var ids = new List<int>(connections.Count);
-
-            foreach (var connection in connections)
-            {
-                ids.Add(connection.Id);
-            }
-
-            ids.Sort();
+            var ids = connections.Select(connection => connection.Id).Order().ToList();
 
             connections.Sort((a, b) =>
             {
@@ -220,8 +198,8 @@ internal sealed partial class PulseGraphWalker
 
     private sealed record NodeOutput(int NodeId, string Port) : ValueRef;
 
-    // A temporary variable, read by its name
-    private sealed record LocalNameValue(string Name) : ValueRef;
+    // A temporary variable, read by its name, with the node declaring it or -1
+    private sealed record LocalNameValue(string Name, int DeclaringNode) : ValueRef;
 
     // A branch condition the node inverts itself rather than reading from a separate Not node
     private sealed record InvertedValue(ValueRef Inner) : ValueRef;
@@ -230,7 +208,7 @@ internal sealed partial class PulseGraphWalker
     private sealed record InternalValue(string Port, ValueRef? First, ValueRef? Second) : ValueRef;
 
     // One case test of a switch: the switched on value against a case value
-    private sealed record CaseCondition(ValueRef SwitchValue, ValueRef CaseValue, string SwitchType) : ValueRef;
+    private sealed record CaseCondition(ValueRef SwitchValue, ValueRef CaseValue, PulseValueType SwitchType) : ValueRef;
 
     private sealed record UnknownValue : ValueRef;
 
@@ -269,11 +247,18 @@ internal sealed partial class PulseGraphWalker
             case VariableValue variable:
                 port.Add("m_ValueSource", "var");
                 port.Add("m_nVarOrConstID", variable.VariableNodeId);
+                node.AddVariableRead(PulseVariableKind.Variable, variable.VariableNodeId, key);
                 break;
 
             case LocalNameValue local:
                 port.Add("m_ValueSource", "local_name_ref");
                 port.Add("m_LiteralValue", local.Name);
+
+                if (local.DeclaringNode >= 0)
+                {
+                    node.AddVariableRead(PulseVariableKind.TempVar, local.DeclaringNode, key);
+                }
+
                 break;
 
             case NodeOutput output:
@@ -378,18 +363,12 @@ internal sealed partial class PulseGraphWalker
         node.InflowName = "InDefault";
         node.CellClass = "CPulseCell_Step_EntFire";
 
-        var target = KVObject.Collection();
-        target.Add("m_ValueSource", "domain_value");
-        target.Add("m_LiteralValue", connection.TargetEntity);
-        node.Fields.Add("m_TargetName", target);
+        SetInputPort(node, node.Fields, "m_TargetName", "TargetName", new DomainValue(connection.TargetEntity));
         node.Fields.Add("m_Input", connection.TargetInput);
 
         if (!string.IsNullOrEmpty(connection.Param))
         {
-            var param = KVObject.Collection();
-            param.Add("m_ValueSource", "literal");
-            param.Add("m_LiteralValue", string.Empty);
-            node.Fields.Add("m_Param", param);
+            SetInputPort(node, node.Fields, "m_Param", "pParam", new LiteralValue(string.Empty, "PVAL_STRING"));
             node.Fields.Add("m_SingleParamType", "PVAL_STRING");
             Report($"Node {node.Id} is a skipped entity fire, its parameter value is not kept.");
         }
@@ -397,23 +376,13 @@ internal sealed partial class PulseGraphWalker
         node.Fields.Add("m_bNodeSkip", true);
     }
 
-    private static readonly HashSet<string> SequencePointNames =
-    [
-        "m_PrimaryPoint",
-        "m_StepPoint",
-        "m_OptionalSpontaneousPoint",
-        "m_OptionalFireAndForgetPoint",
-        "m_OptionalRequirementsCheckPointForInlineSkip",
-    ];
-
     /// <summary>
-    /// Sequence points mark where in a node the cursor is, as opposed to the named outflows it leaves through. Unknown
-    /// ones are matched by the <c>m_&lt;name&gt;Point</c> shape of the known ones. <c>InDefault</c> is the default inflow,
-    /// which generic cells name after their method.
+    /// Sequence points mark where in a node the cursor is, as opposed to the named outflows it leaves through. They are
+    /// matched by the <c>m_&lt;name&gt;Point</c> shape most of them have. <c>InDefault</c> is the default inflow, which
+    /// generic cells name after their method.
     /// </summary>
     private static bool IsSequencePointName(string? name)
         => string.IsNullOrEmpty(name)
-            || name == "InDefault"
-            || SequencePointNames.Contains(name)
+            || name is "InDefault" or "m_OptionalRequirementsCheckPointForInlineSkip"
             || (name.StartsWith("m_", StringComparison.Ordinal) && name.EndsWith("Point", StringComparison.Ordinal));
 }

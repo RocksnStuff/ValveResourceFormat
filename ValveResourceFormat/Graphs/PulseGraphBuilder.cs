@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using ValveKeyValue;
 using ValveResourceFormat.Serialization.KeyValues;
 
@@ -18,9 +19,8 @@ internal sealed class PulseGraphBuilder
     private PulseGraphWalker? walker;
 
     private readonly Dictionary<int, Node> cards = [];
-    private readonly Dictionary<(string HubType, int Index), Node> hubs = [];
-    private readonly Dictionary<int, int> variableIndices = [];
-    private readonly Dictionary<string, Node> tempVarCards = [];
+    private readonly Dictionary<int, Node> variableHubs = [];
+    private readonly Dictionary<int, Node> blackboardReferenceHubs = [];
     private readonly HashSet<string> reportedUnknownCellClasses = [];
 
     private const string VariableHubType = "Variable";
@@ -48,7 +48,7 @@ internal sealed class PulseGraphBuilder
 
         if (walker == null)
         {
-            walker = new PulseGraphWalker(new PulseGraphDefinition(data!, ProgressReporter), ProgressReporter);
+            walker = new PulseGraphWalker(new PulseGraphDefinition(data!, ProgressReporter));
             walker.Walk();
         }
 
@@ -56,38 +56,14 @@ internal sealed class PulseGraphBuilder
 
         for (var i = 0; i < walker.VariableNodeIds.Count; i++)
         {
-            variableIndices.TryAdd(walker.VariableNodeIds[i], i);
-            AddVariableHub(document, definition.Vars[i], i);
+            variableHubs.TryAdd(walker.VariableNodeIds[i], AddVariableHub(document, definition.Vars[i]));
         }
 
-        var inflows = new Dictionary<int, List<string>>();
+        var inflows = walker.Nodes.SelectMany(node => node.Outflows).ToLookup(outflow => outflow.Target, outflow => outflow.Inflow);
 
         foreach (var node in walker.Nodes)
         {
-            foreach (var outflow in node.Outflows)
-            {
-                if (!inflows.TryGetValue(outflow.Target, out var names))
-                {
-                    names = [];
-                    inflows[outflow.Target] = names;
-                }
-
-                if (!names.Contains(outflow.Inflow))
-                {
-                    names.Add(outflow.Inflow);
-                }
-            }
-        }
-
-        foreach (var node in walker.Nodes)
-        {
-            var card = AddCard(document, node, inflows.GetValueOrDefault(node.Id) ?? []);
-            cards[node.Id] = card;
-
-            if (node.ClassName == "Step_CreateTempVar")
-            {
-                tempVarCards.TryAdd(node.Fields.GetStringProperty("m_VarName", string.Empty), card);
-            }
+            cards[node.Id] = AddCard(document, node, inflows[node.Id]);
         }
 
         foreach (var node in walker.Nodes)
@@ -102,7 +78,7 @@ internal sealed class PulseGraphBuilder
         document.Legend.AddRange(PulseHues.Legend());
     }
 
-    private Node AddCard(GraphDocument document, PulseEditorNode node, List<string> inflows)
+    private Node AddCard(GraphDocument document, PulseEditorNode node, IEnumerable<string> inflows)
     {
         var card = CreateNode(Title(node), Subtitle(node), Category(node));
         card.Tag = node;
@@ -151,46 +127,27 @@ internal sealed class PulseGraphBuilder
             }
         }
 
-        foreach (var (key, port) in Ports(node))
+        foreach (var link in node.VariableLinks)
         {
-            var source = port.GetStringProperty("m_ValueSource", string.Empty) switch
+            var variable = link.Kind switch
             {
-                "var" => VariableHub(port.GetInt32Property("m_nVarOrConstID", -1)),
-                "local_name_ref" => tempVarCards.GetValueOrDefault(port.GetStringProperty("m_LiteralValue", string.Empty)),
-                _ => null,
+                PulseVariableKind.Variable => variableHubs.GetValueOrDefault(link.Target),
+                PulseVariableKind.TempVar => cards.GetValueOrDefault(link.Target),
+                _ => BlackboardReferenceHub(document, link.Target),
             };
 
-            if (source != null)
+            if (variable == null || variable == card)
             {
-                LinkRead(document, source, card, key);
+                continue;
             }
-        }
 
-        if (node.Fields.TryGetValue("m_VarDefID", out var varDefId))
-        {
-            var target = VariableHub((int)varDefId) ?? cards.GetValueOrDefault((int)varDefId);
-            if (target != null && target != card)
+            if (link.Port is { } port)
             {
-                LinkWrite(document, card, target);
-            }
-        }
-
-        if (node.Fields.TryGetValue("m_SourceID", out var sourceId) && VariableHub((int)sourceId) is { } readHub)
-        {
-            LinkRead(document, readHub, card, "var");
-        }
-
-        if (node.Fields.TryGetValue("m_nBlackboardReferenceIdx", out var referenceIndex))
-        {
-            var hub = BlackboardReferenceHub(document, (int)referenceIndex);
-
-            if (node.IsFlow)
-            {
-                LinkWrite(document, card, hub);
+                LinkRead(document, variable, card, port);
             }
             else
             {
-                LinkRead(document, hub, card, "var");
+                LinkWrite(document, card, variable);
             }
         }
     }
@@ -244,7 +201,7 @@ internal sealed class PulseGraphBuilder
 
         foreach (var (key, value) in node.Fields)
         {
-            if (HiddenFields.Contains(key) || IsPort(value) || key is "m_GenericPorts" or "m_ArgList")
+            if (HiddenFields.Contains(key))
             {
                 continue;
             }
@@ -299,17 +256,7 @@ internal sealed class PulseGraphBuilder
     private void AddPublicOutputRows(Node card, PulseEditorNode node)
     {
         var definition = walker!.Definition;
-        var outputNodeId = node.Fields.GetInt32Property("m_OutputDefID", -1);
-        var outputIndex = -1;
-
-        for (var i = 0; i < walker.PublicOutputNodeIds.Count; i++)
-        {
-            if (walker.PublicOutputNodeIds[i] == outputNodeId)
-            {
-                outputIndex = i;
-                break;
-            }
-        }
+        var outputIndex = walker.PublicOutputIndex(node.Fields.GetInt32Property("m_OutputDefID", -1));
 
         if (outputIndex < 0)
         {
@@ -421,7 +368,7 @@ internal sealed class PulseGraphBuilder
     }
 
     // Definitions share the hub their reads and writes link to, since no pane displays them
-    private void AddVariableHub(GraphDocument document, KVObject variable, int index)
+    private static Node AddVariableHub(GraphDocument document, KVObject variable)
     {
         var node = CreateNode(variable.GetStringProperty("m_Name", string.Empty), VariableHubType, PulseCategory.Variable);
         node.AddText($"Type: {variable.GetStringProperty("m_Type")}");
@@ -444,15 +391,12 @@ internal sealed class PulseGraphBuilder
             node.AddText(description);
         }
 
-        hubs[(VariableHubType, index)] = document.AddNode(node);
+        return document.AddNode(node);
     }
-
-    private Node? VariableHub(int variableNodeId)
-        => variableIndices.TryGetValue(variableNodeId, out var index) ? hubs[(VariableHubType, index)] : null;
 
     private Node BlackboardReferenceHub(GraphDocument document, int index)
     {
-        if (hubs.TryGetValue((BlackboardReferenceHubType, index), out var hub))
+        if (blackboardReferenceHubs.TryGetValue(index, out var hub))
         {
             return hub;
         }
@@ -463,7 +407,7 @@ internal sealed class PulseGraphBuilder
             : string.Create(CultureInfo.InvariantCulture, $"<UNKNOWN m_nBlackboardReferenceIdx={index}>");
 
         hub = document.AddNode(CreateNode(name, BlackboardReferenceHubType, PulseCategory.Variable));
-        hubs[(BlackboardReferenceHubType, index)] = hub;
+        blackboardReferenceHubs[index] = hub;
         return hub;
     }
 
@@ -575,24 +519,17 @@ internal sealed class PulseGraphBuilder
 
         private static GraphHue FlowHue => PulseHues.HueOf(PulseValueKind.Flow);
 
-        public GraphSocket FlowIn(string name) => GetOrAdd(flowInputs, name, () => AddInput(FlowLabel(name), FlowHue));
+        public GraphSocket FlowIn(string name)
+            => flowInputs.TryGetValue(name, out var socket) ? socket : flowInputs[name] = AddInput(FlowLabel(name), FlowHue);
 
-        public GraphSocket FlowOut(string name) => GetOrAdd(flowOutputs, name, () => AddOutput(FlowLabel(name), FlowHue));
+        public GraphSocket FlowOut(string name)
+            => flowOutputs.TryGetValue(name, out var socket) ? socket : flowOutputs[name] = AddOutput(FlowLabel(name), FlowHue);
 
-        public GraphSocket ValueIn(string name, GraphHue hue) => GetOrAdd(valueInputs, name, () => AddInput(name, hue));
+        public GraphSocket ValueIn(string name, GraphHue hue)
+            => valueInputs.TryGetValue(name, out var socket) ? socket : valueInputs[name] = AddInput(name, hue);
 
-        public GraphSocket ValueOut(string name, GraphHue hue) => GetOrAdd(valueOutputs, name, () => AddOutput(name, hue));
-
-        private static GraphSocket GetOrAdd(Dictionary<string, GraphSocket> sockets, string name, Func<GraphSocket> create)
-        {
-            if (!sockets.TryGetValue(name, out var socket))
-            {
-                socket = create();
-                sockets[name] = socket;
-            }
-
-            return socket;
-        }
+        public GraphSocket ValueOut(string name, GraphHue hue)
+            => valueOutputs.TryGetValue(name, out var socket) ? socket : valueOutputs[name] = AddOutput(name, hue);
 
         // The default inflow and outflow are the plain sequence a step continues through
         private static string FlowLabel(string name) => name switch
