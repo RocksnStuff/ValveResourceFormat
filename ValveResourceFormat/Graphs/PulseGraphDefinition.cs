@@ -1,7 +1,6 @@
 using System.Linq;
 using ValveKeyValue;
 using ValveResourceFormat.Serialization.KeyValues;
-using ValveResourceFormat.Utils;
 
 namespace ValveResourceFormat.Graphs;
 
@@ -302,10 +301,6 @@ internal sealed class PulseChunk
 
     public IEnumerable<PulseRegister> Registers => registers.Values;
 
-    /// <summary>The debug info of an instruction, or an empty one past the end of <c>m_InstructionDebugInfos</c>.</summary>
-    public PulseInstructionDebug DebugInfo(int instruction)
-        => instruction >= 0 && instruction < debugInfos.Length ? debugInfos[instruction] : new PulseInstructionDebug(-1, -1, string.Empty);
-
     public PulseRegister? Register(int register) => registers.GetValueOrDefault(register);
 
     public string RegisterType(int register) => Register(register)?.Type ?? "PVAL_INVALID";
@@ -318,7 +313,7 @@ internal sealed class PulseChunk
     public int FindRegister(int node, string port) => registersByOrigin.TryGetValue((node, port), out var register) ? register.Index : -1;
 
     /// <summary>Reads <c>m_OriginName</c>, "&lt;node id&gt;:&lt;port&gt;". Compiler generated registers such as casts have no node.</summary>
-    public static bool TryParseOriginName(string originName, out int nodeId, out string port)
+    private static bool TryParseOriginName(string originName, out int nodeId, out string port)
     {
         var separator = originName.IndexOf(':', StringComparison.Ordinal);
         if (separator > 0 && ValueParsing.TryParseInt(originName.AsSpan(0, separator), out nodeId))
@@ -398,18 +393,8 @@ internal sealed class PulseGraphDefinition
     /// <summary>Whether a top level key of a cell holds any of its outflows.</summary>
     public bool IsOutflowKey(int cell, string key) => GetCellOutflows(cell).Keys.Contains(key);
 
-    /// <summary>A temporary variable of the bank a chunk uses, or null.</summary>
-    public KVObject? TempVar(int chunk, int index)
-    {
-        var bank = Chunks[chunk].TempVarBank;
-        if (bank < 0 || bank >= TempVarBanks.Count)
-        {
-            return null;
-        }
-
-        var tempVars = TempVarBanks[bank].GetArray("m_TempVars") ?? [];
-        return index >= 0 && index < tempVars.Count ? tempVars[index] : null;
-    }
+    /// <summary>A temporary variable of the bank a chunk uses.</summary>
+    public KVObject TempVar(int chunk, int index) => TempVarBanks[Chunks[chunk].TempVarBank].GetArray("m_TempVars")[index];
 
     /// <summary>
     /// Reads a type name. Handle and enum types name their subject after a colon (PVAL_EHANDLE:func_button),

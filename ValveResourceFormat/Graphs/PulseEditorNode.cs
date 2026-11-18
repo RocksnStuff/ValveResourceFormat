@@ -48,9 +48,6 @@ internal sealed class PulseEditorNode(int id, string className)
     /// <summary>The node's own document keys, with input ports as <c>m_ValueSource</c> tables.</summary>
     public KVObject Fields { get; } = KVObject.Collection();
 
-    public bool IsFlow { get; init; } = true;
-    public bool IsEntry { get; set; }
-
     /// <summary>The cell class the node was compiled to, null for nodes with no cell.</summary>
     public string? CellClass { get; set; }
 
