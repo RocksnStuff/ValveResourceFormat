@@ -37,11 +37,8 @@ namespace Tests.IO
         {
             var (text, messages) = Decompile(name);
 
-            // Node positions depend on the fonts installed
-            var lines = text.ReplaceLineEndings("\n").Split('\n').Where(line => !line.Contains("m_vPosition", StringComparison.Ordinal));
-
             await Assert.That(messages).IsEmpty();
-            await ValidOutput.VerifyText(string.Join('\n', lines), name, "decompiled.vpulse");
+            await ValidOutput.VerifyText(text, name, "decompiled.vpulse");
         }
 
         // The compiler numbers method argument registers by the ids of the connections reading them

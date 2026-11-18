@@ -15,8 +15,8 @@ internal sealed class PulseGraphBuilder
     /// <summary>Receives diagnostics about parts of the definition that could not be read cleanly.</summary>
     public IProgress<string>? ProgressReporter { get; set; }
 
-    private readonly KVObject? data;
-    private PulseGraphWalker? walker;
+    private readonly KVObject data;
+    private PulseGraphWalker walker = null!;
 
     private readonly Dictionary<int, Node> cards = [];
     private readonly Dictionary<int, Node> variableHubs = [];
@@ -32,24 +32,14 @@ internal sealed class PulseGraphBuilder
         this.data = data;
     }
 
-    /// <summary>Creates a builder over a graph that was already walked.</summary>
-    /// <param name="walker">The walked graph.</param>
-    public PulseGraphBuilder(PulseGraphWalker walker)
-    {
-        this.walker = walker;
-    }
-
     /// <summary>Fills <paramref name="document"/> with the graph and lays it out.</summary>
     /// <param name="document">The graph to fill.</param>
     public void Build(GraphDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        if (walker == null)
-        {
-            walker = new PulseGraphWalker(new PulseGraphDefinition(data!, ProgressReporter));
-            walker.Walk();
-        }
+        walker = new PulseGraphWalker(new PulseGraphDefinition(data, ProgressReporter));
+        walker.Walk();
 
         var definition = walker.Definition;
 
@@ -80,7 +70,6 @@ internal sealed class PulseGraphBuilder
     private Node AddCard(GraphDocument document, PulseEditorNode node, IEnumerable<string> inflows)
     {
         var card = CreateNode(Title(node), Subtitle(node), Category(node));
-        card.Tag = node;
 
         foreach (var inflow in inflows)
         {
@@ -93,14 +82,14 @@ internal sealed class PulseGraphBuilder
         {
             AddPublicOutputRows(card, node);
         }
-        else if (node.ClassName == "Step_CallMethod" && walker!.TryGetNode(node.Fields.GetInt32Property("m_MethodID"), out var method))
+        else if (node.ClassName == "Step_CallMethod" && walker.TryGetNode(node.Fields.GetInt32Property("m_MethodID"), out var method))
         {
             card.AddText($"Method: {method.Name}");
         }
 
         foreach (var inparam in node.Inparams)
         {
-            card.ValueIn(inparam.ThisPort, HueOf(walker!.OutputType(inparam.SourceNode, inparam.SourcePort)));
+            card.ValueIn(inparam.ThisPort, HueOf(walker.OutputType(inparam.SourceNode, inparam.SourcePort)));
         }
 
         foreach (var outflow in node.Outflows)
@@ -125,7 +114,7 @@ internal sealed class PulseGraphBuilder
         {
             if (cards.TryGetValue(inparam.SourceNode, out var source))
             {
-                var hue = HueOf(walker!.OutputType(inparam.SourceNode, inparam.SourcePort));
+                var hue = HueOf(walker.OutputType(inparam.SourceNode, inparam.SourcePort));
                 document.Connect(source.ValueOut(inparam.SourcePort, hue), card.ValueIn(inparam.ThisPort, hue));
             }
         }
@@ -252,7 +241,7 @@ internal sealed class PulseGraphBuilder
 
     private void AddPublicOutputRows(Node card, PulseEditorNode node)
     {
-        var definition = walker!.Definition;
+        var definition = walker.Definition;
         var outputIndex = walker.PublicOutputIndex(node.Fields.GetInt32Property("m_OutputDefID", -1));
 
         if (outputIndex < 0)
@@ -343,7 +332,7 @@ internal sealed class PulseGraphBuilder
 
             if (category == PulseCategory.Other)
             {
-                walker!.Definition.Report($"Unknown pulse cell class \"{cellClass}\".");
+                walker.Definition.Report($"Unknown pulse cell class \"{cellClass}\".");
             }
 
             return category;
@@ -393,7 +382,7 @@ internal sealed class PulseGraphBuilder
             return hub;
         }
 
-        var references = walker!.Definition.BlackboardReferences;
+        var references = walker.Definition.BlackboardReferences;
         var name = index >= 0 && index < references.Count
             ? references[index].GetStringProperty("m_NodeName", string.Create(CultureInfo.InvariantCulture, $"<BLACKBOARD REFERENCE {index}>"))
             : string.Create(CultureInfo.InvariantCulture, $"<UNKNOWN m_nBlackboardReferenceIdx={index}>");
@@ -408,7 +397,7 @@ internal sealed class PulseGraphBuilder
     {
         var heads = new Dictionary<int, Node>();
 
-        foreach (var flow in walker!.UnwalkedFlows)
+        foreach (var flow in walker.UnwalkedFlows)
         {
             if (!heads.TryGetValue(flow.Chunk, out var head))
             {
@@ -425,7 +414,7 @@ internal sealed class PulseGraphBuilder
 
     private Node AddInstructionList(GraphDocument document, int chunkIndex)
     {
-        walker!.Definition.Report($"Chunk {chunkIndex} has no debug info for some of its instructions, it is drawn as a list of instructions.");
+        walker.Definition.Report($"Chunk {chunkIndex} has no debug info for some of its instructions, it is drawn as a list of instructions.");
 
         var head = CreateNode(string.Create(CultureInfo.InvariantCulture, $"Chunk {chunkIndex}"), "Chunk", PulseCategory.FlowControl);
         head.AddMessage("No debug info, the editor nodes are unknown");
@@ -433,7 +422,7 @@ internal sealed class PulseGraphBuilder
 
         var previous = head;
 
-        foreach (var instruction in walker!.Definition.Chunks[chunkIndex].Instructions)
+        foreach (var instruction in walker.Definition.Chunks[chunkIndex].Instructions)
         {
             var card = CreateNode(instruction.CodeName, "Instruction", PulseCategory.Instruction);
 
