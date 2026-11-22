@@ -230,3 +230,6 @@ exceptions*.txt
 
 # Schema converter downloads
 Misc/SchemaConverter/cache/
+
+# Local issue tracker for agent skills
+.scratch/

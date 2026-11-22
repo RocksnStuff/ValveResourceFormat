@@ -84,3 +84,17 @@ Standard Microsoft C# conventions, plus:
 - Don't narrate the change, this conversation, or session codenames; no decorative dividers
 - Leave existing comments alone if they are clear and correct
 - Public APIs in ValveResourceFormat and Renderer require concise XML docs; use `<inheritdoc/>` on overrides that add nothing new
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as local markdown files under `.scratch/<feature>/`. See `agentDocs/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as a `Status:` line in each issue file. See `agentDocs/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `agentDocs/domain.md`.
