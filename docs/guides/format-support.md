@@ -413,18 +413,18 @@ other graphs of the file or, for one graph per file, the graphs of the folder.
 
 ## Pulse Graphs (vpulse)
 
-Every compiled instruction records the editor node it came from, so the viewer and the
-decompiler rebuild the same editor nodes: entry points, steps, branches, loops, switches,
-expressions, method calls, variables and public outputs, and generic nodes for game
-bindings. For the graphs CS2, Deadlock and Dota 2 ship, resourcecompiler builds the
+The debug info of every compiled instruction records the editor node it came from, so the
+viewer and the decompiler rebuild the same editor nodes: entry points, steps, branches,
+loops, switches, expressions, method calls, variables and public outputs, and generic nodes
+for game bindings. For the graphs CS2, Deadlock and Dota 2 ship, resourcecompiler builds the
 decompiled `.vpulse` document back into the same bytecode except for the limitations below.
 
-| Feature                                  | Category              | Details                                                                                                                                                                            |
-| ---------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skipped nodes                            | Not in compiled files | A skipped node compiles to nothing. A skipped entity fire is rebuilt from the output connection it lists, without its parameter value. Nodes after a skipped entry point are lost. |
-| Text expression debug ids                | Not in compiled files | Parts of a text expression get new node ids, so a recompiled graph differs in those debug ids only.                                                                                |
-| Node positions                           | Not in compiled files | Nodes are placed by an automatic layout.                                                                                                                                           |
-| Chunks without debug info                | Not in compiled files | Decompiling fails. The viewer draws such a graph by its cells and instructions instead of its editor nodes.                                                                        |
+| Feature                                  | Category              | Details                                                                                                                                                                                                                                            |
+| ---------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skipped nodes                            | Not in compiled files | A skipped node compiles to nothing. A skipped entity fire is rebuilt from the output connection it lists, without its parameter value. Nodes after a skipped entry point are lost.                                                                 |
+| Text expression debug ids                | Not in compiled files | Parts of a text expression get new node ids, so a recompiled graph differs in those debug ids only.                                                                                                                                                |
+| Node positions                           | Not in compiled files | Nodes are placed by an automatic layout.                                                                                                                                                                                                           |
+| Chunks without debug info                | Not in compiled files | The editor nodes are guessed from the shape of the instructions. Nodes get new ids where the graph keeps none, and variables are read inline rather than through Var Reference nodes. Only tested on shipped graphs with their debug info removed. |
 
 ## Per-Game Notes
 

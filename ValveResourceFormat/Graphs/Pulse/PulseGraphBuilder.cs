@@ -7,8 +7,7 @@ namespace ValveResourceFormat.Graphs;
 
 /// <summary>
 /// Builds the node graph of a compiled Pulse graph: one card per editor node, wired by its flow and value
-/// connections, with a hub per variable that reads and writes link to. Graphs without debug info for every
-/// instruction are drawn by <see cref="PulseInstructionGraphBuilder"/> instead.
+/// connections, with a hub per variable that reads and writes link to.
 /// </summary>
 /// <seealso href="https://s2v.app/SchemaExplorer/cs2/pulse_runtime_lib/CPulseGraphDef">CPulseGraphDef</seealso>
 internal sealed class PulseGraphBuilder
@@ -40,13 +39,6 @@ internal sealed class PulseGraphBuilder
         ArgumentNullException.ThrowIfNull(document);
 
         var definition = new PulseGraphDefinition(data, ProgressReporter);
-
-        if (!definition.Chunks.All(chunk => chunk.HasDebugInfo))
-        {
-            new PulseInstructionGraphBuilder(data) { ProgressReporter = ProgressReporter }.Build(document);
-            return;
-        }
-
         walker = new PulseGraphWalker(definition);
         walker.Walk();
 

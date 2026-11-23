@@ -11,7 +11,8 @@ namespace ValveResourceFormat.IO;
 /// Decompiles a compiled Pulse graph back into an editable <c>.vpulse</c> document that resourcecompiler can build again.
 /// </summary>
 /// <remarks>
-/// The editor nodes are rebuilt from the debug info every instruction keeps.
+/// The editor nodes are rebuilt from the debug info every instruction keeps. For chunks compiled without it, they are
+/// guessed from the shape of the instructions, which compiles to the same behavior but not always to the same bytecode.
 /// </remarks>
 public sealed class PulseGraphExtract
 {
@@ -46,21 +47,11 @@ public sealed class PulseGraphExtract
     /// <summary>
     /// Builds the <c>.vpulse</c> document as KV3 text.
     /// </summary>
-    /// <exception cref="InvalidDataException">A chunk has no debug info for some of its instructions.</exception>
     public string ToDocumentString() => BuildDocument().ToKV3String(KV3IDLookup.Get("vpulse17"));
 
     private KVObject BuildDocument()
     {
         var definition = new PulseGraphDefinition(graph, ProgressReporter);
-
-        for (var i = 0; i < definition.Chunks.Count; i++)
-        {
-            if (!definition.Chunks[i].HasDebugInfo)
-            {
-                throw new InvalidDataException($"Chunk {i} has no debug info for some of its instructions, which the editor nodes are rebuilt from.");
-            }
-        }
-
         var walker = new PulseGraphWalker(definition);
         walker.Walk();
 

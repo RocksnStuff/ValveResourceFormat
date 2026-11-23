@@ -1,0 +1,244 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:vpulse17:version{ad8ba504-a08c-43af-8d5f-63b5d13e157a} -->
+{
+	_class = "Root"
+	m_NodeID = 320105439
+	m_Children = 
+	[
+		{
+			_class = "VariableDefinition"
+			m_NodeID = 233111767
+			m_Name = "LastToggleTime"
+			m_Value = 
+			{
+				m_Type = "PVAL_GAMETIME"
+				m_Value = 0.0
+			}
+			m_Description = ""
+			m_nKeysSource = "PRIVATE"
+			m_bIsPublicBlackboardVariable = false
+		},
+		{
+			_class = "Flow_Generic"
+			m_NodeID = 320105419
+			m_vPosition = [ 0.0, 0.0 ]
+			m_GenericNodeType = "CPulseGraphInstance_ServerEntity::GraphStart"
+			m_GenericPorts = 
+			{
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Outflow"
+					m_NodeID = 320105435
+					m_SourceOutflowName = "OutDefault"
+					m_DestInflowName = "Run"
+					m_DestFlowNodeID = 9371199
+				},
+			]
+		},
+		{
+			_class = "Flow_Generic"
+			m_NodeID = 9371199
+			m_vPosition = [ 520.0, 0.0 ]
+			m_GenericNodeType = "CPulseCell_Outflow_ListenForEntityOutput"
+			m_GenericPorts = 
+			{
+				hEntity = 
+				{
+					m_ValueSource = "domain_value"
+					m_LiteralValue = "fast_cooldown_target"
+				}
+			}
+			m_GenericKeys = 
+			{
+				m_bListenUntilCanceled = true
+				m_strEntityOutput = 
+				{
+					m_strEntityOutput = "OnDamaged"
+				}
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Outflow"
+					m_NodeID = 320105436
+					m_SourceOutflowName = "m_OnFired"
+					m_DestInflowName = "InDefault"
+					m_DestFlowNodeID = 320105421
+				},
+			]
+		},
+		{
+			_class = "Value_Generic"
+			m_NodeID = 320105420
+			m_vPosition = [ 0.0, 140.0 ]
+			m_GenericNodeType = "CPulseServerFuncs::GetGameTime"
+			m_GenericPorts = 
+			{
+			}
+		},
+		{
+			_class = "ExprAdd"
+			m_NodeID = 320105426
+			m_vPosition = [ 0.0, 280.0 ]
+			m_FirstArg = 
+			{
+				m_ValueSource = "var"
+				m_nVarOrConstID = 233111767
+			}
+			m_SecondArg = 
+			{
+				m_ValueSource = "literal"
+				m_LiteralValue = 2
+				m_UserRefinedType = "PVAL_INT"
+			}
+		},
+		{
+			_class = "ExprGreater"
+			m_NodeID = 320105427
+			m_vPosition = [ 520.0, 140.0 ]
+			m_FirstArg = 
+			{
+				m_ValueSource = "port"
+			}
+			m_SecondArg = 
+			{
+				m_ValueSource = "port"
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105428
+					m_SourceNode = 320105420
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "first"
+				},
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105429
+					m_SourceNode = 320105426
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "second"
+				},
+			]
+		},
+		{
+			_class = "Outflow_If"
+			m_NodeID = 320105421
+			m_vPosition = [ 1040.0, 140.0 ]
+			m_Condition = 
+			{
+				m_ValueSource = "port"
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Outflow"
+					m_NodeID = 320105437
+					m_SourceOutflowName = "m_IsTrue"
+					m_DestInflowName = "InDefault"
+					m_DestFlowNodeID = 320105423
+				},
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105430
+					m_SourceNode = 320105427
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "m_bCondition"
+				},
+			]
+		},
+		{
+			_class = "Value_Generic"
+			m_NodeID = 320105422
+			m_vPosition = [ 520.0, 280.0 ]
+			m_GenericNodeType = "CCitadelPointPulseAPI::GetFastCooldownsEnabled"
+			m_GenericPorts = 
+			{
+			}
+		},
+		{
+			_class = "ExprNot"
+			m_NodeID = 320105431
+			m_vPosition = [ 1040.0, 280.0 ]
+			m_Arg = 
+			{
+				m_ValueSource = "port"
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105432
+					m_SourceNode = 320105422
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "value"
+				},
+			]
+		},
+		{
+			_class = "Flow_Generic"
+			m_NodeID = 320105423
+			m_vPosition = [ 1560.0, 140.0 ]
+			m_GenericNodeType = "CCitadelPointPulseAPI::SetFastCooldownsEnabled"
+			m_GenericPorts = 
+			{
+				bEnabled = 
+				{
+					m_ValueSource = "port"
+				}
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Outflow"
+					m_NodeID = 320105438
+					m_SourceOutflowName = "OutDefault"
+					m_DestInflowName = "InDefault"
+					m_DestFlowNodeID = 320105425
+				},
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105433
+					m_SourceNode = 320105431
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "bEnabled"
+				},
+			]
+		},
+		{
+			_class = "Value_Generic"
+			m_NodeID = 320105424
+			m_vPosition = [ 1560.0, 280.0 ]
+			m_GenericNodeType = "CPulseServerFuncs::GetGameTime"
+			m_GenericPorts = 
+			{
+			}
+		},
+		{
+			_class = "Step_SetVar"
+			m_NodeID = 320105425
+			m_vPosition = [ 2080.0, 140.0 ]
+			m_VarDefID = 233111767
+			m_Value = 
+			{
+				m_ValueSource = "port"
+			}
+			m_Children = 
+			[
+				{
+					_class = "Connection_Inparam"
+					m_NodeID = 320105434
+					m_SourceNode = 320105424
+					m_SourceOutparamName = "retval"
+					m_ThisInparamName = "m_Value"
+				},
+			]
+		},
+	]
+	m_DomainIdentifier = "ServerEntity"
+	m_DomainSubType = "PVAL_EHANDLE:point_pulse"
+	m_ParentMapName = "maps/dev/bobb/bobb_test.vmap"
+	m_ParentXmlName = ""
+}

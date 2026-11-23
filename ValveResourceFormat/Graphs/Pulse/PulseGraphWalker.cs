@@ -26,7 +26,7 @@ internal sealed partial class PulseGraphWalker
     public int RootNodeId { get; private set; }
 
     // Past every editor node id present in the compiled graph
-    private int nextNodeId = 1;
+    private int nextNodeId;
 
     private readonly int[] cellNodeIds;
     private readonly int[] variableNodeIds;
@@ -40,9 +40,9 @@ internal sealed partial class PulseGraphWalker
     {
         Definition = definition;
 
-        CollectUsedNodeIds();
+        nextNodeId = definition.FirstUnusedNodeId();
 
-        cellNodeIds = [.. definition.Cells.Select(cell => KnownOrFreshNodeId(cell.GetInt32Property("m_nEditorNodeID", -1)))];
+        cellNodeIds = [.. definition.CellNodeIds.Select(KnownOrFreshNodeId)];
         variableNodeIds = [.. definition.Vars.Select(variable => KnownOrFreshNodeId(variable.GetInt32Property("m_nEditorNodeID", -1)))];
         publicOutputNodeIds = [.. definition.PublicOutputs.Select(_ => AllocateNodeId())];
     }
@@ -94,46 +94,6 @@ internal sealed partial class PulseGraphWalker
     }
 
     private void Report(string message) => Definition.Report(message);
-
-    private void CollectUsedNodeIds()
-    {
-        void Use(int id) => nextNodeId = Math.Max(nextNodeId, id + 1);
-
-        foreach (var cell in Definition.Cells)
-        {
-            Use(cell.GetInt32Property("m_nEditorNodeID", -1));
-        }
-
-        foreach (var variable in Definition.Vars)
-        {
-            Use(variable.GetInt32Property("m_nEditorNodeID", -1));
-        }
-
-        foreach (var callInfo in Definition.CallInfos)
-        {
-            Use(callInfo.EditorNode);
-            Use(callInfo.CallMethodId);
-        }
-
-        foreach (var chunk in Definition.Chunks)
-        {
-            foreach (var debugInfo in chunk.DebugInfos)
-            {
-                Use(debugInfo.FlowNode);
-                Use(debugInfo.ValueNode);
-            }
-
-            foreach (var register in chunk.Registers)
-            {
-                Use(register.OriginNode);
-            }
-        }
-
-        foreach (var connection in Definition.OutputConnections)
-        {
-            Use(connection.EntFireNode);
-        }
-    }
 
     private int AllocateNodeId() => nextNodeId++;
 

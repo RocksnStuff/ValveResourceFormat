@@ -275,7 +275,7 @@ internal sealed class PulseChunk
     /// <summary>Whether every instruction has a debug info entry and the entries name editor nodes.</summary>
     public bool HasDebugInfo { get; }
 
-    private readonly PulseInstructionDebug[] debugInfos;
+    private PulseInstructionDebug[] debugInfos;
     private readonly Dictionary<int, PulseRegister> registers = [];
     private readonly Dictionary<(int Node, string Port), PulseRegister> registersByOrigin = [];
 
@@ -303,22 +303,41 @@ internal sealed class PulseChunk
         {
             var info = registerData[i];
             var type = info.GetStringProperty("m_Type", "PVAL_INVALID");
-            var hasOrigin = TryParseOriginName(info.GetStringProperty("m_OriginName", string.Empty), out var originNode, out var originPort);
+            // Without an origin the node is -1, which leaves the register out of the origin lookup
+            _ = TryParseOriginName(info.GetStringProperty("m_OriginName", string.Empty), out var originNode, out var originPort);
 
-            var register = new PulseRegister(
+            AddRegister(new PulseRegister(
                 info.GetInt32Property("m_nReg", i),
                 type,
                 parseValueType(type),
                 originNode,
                 originPort,
-                info.GetInt32Property("m_nWrittenByInstruction", -1));
+                info.GetInt32Property("m_nWrittenByInstruction", -1)));
+        }
+    }
 
-            registers[register.Index] = register;
+    /// <summary>Replaces the debug info and registers of a chunk without debug info with guessed ones.</summary>
+    /// <param name="recoveredDebugInfos">Debug info of every instruction.</param>
+    /// <param name="recoveredRegisters">Every register, with the origins the compiler would have given them.</param>
+    public void SetRecoveredDebugInfo(PulseInstructionDebug[] recoveredDebugInfos, IEnumerable<PulseRegister> recoveredRegisters)
+    {
+        debugInfos = recoveredDebugInfos;
+        registers.Clear();
+        registersByOrigin.Clear();
 
-            if (hasOrigin)
-            {
-                registersByOrigin.TryAdd((originNode, originPort), register);
-            }
+        foreach (var register in recoveredRegisters.OrderBy(static register => register.Index))
+        {
+            AddRegister(register);
+        }
+    }
+
+    private void AddRegister(PulseRegister register)
+    {
+        registers[register.Index] = register;
+
+        if (register.OriginNode >= 0)
+        {
+            registersByOrigin.TryAdd((register.OriginNode, register.OriginPort), register);
         }
     }
 
@@ -374,9 +393,13 @@ internal sealed class PulseGraphDefinition
     public IReadOnlyList<KVObject> BlackboardReferences { get; }
     public IReadOnlyList<PulseOutputConnection> OutputConnections { get; }
 
+    /// <summary>Editor node id of each cell, -1 where the graph does not keep it and no chunk needed its debug info recovered.</summary>
+    public IReadOnlyList<int> CellNodeIds => cellNodeIds;
+
     private readonly IProgress<string>? progressReporter;
     private readonly HashSet<string> reportedMessages = [];
     private readonly CellOutflows?[] cellOutflows;
+    private readonly int[] cellNodeIds;
 
     // Outflows of a cell and the top level cell keys they were found under
     private sealed record CellOutflows(List<PulseOutflow> Outflows, HashSet<string> Keys);
@@ -409,9 +432,64 @@ internal sealed class PulseGraphDefinition
         OutputConnections = [.. (data.GetArray("m_OutputConnections") ?? []).Select(ReadOutputConnection)];
 
         cellOutflows = new CellOutflows?[Cells.Count];
+        cellNodeIds = [.. Cells.Select(static cell => cell.GetInt32Property("m_nEditorNodeID", -1))];
+
+        PulseDebugInfoRecovery.Recover(this, cellNodeIds);
     }
 
     public string CellClass(int cell) => Cells[cell].GetStringProperty("_class", string.Empty);
+
+    /// <summary>An editor node id past every id the graph refers to.</summary>
+    public int FirstUnusedNodeId()
+    {
+        var lastUsed = 0;
+        void Use(int id) => lastUsed = Math.Max(lastUsed, id);
+
+        foreach (var id in cellNodeIds)
+        {
+            Use(id);
+        }
+
+        foreach (var variable in Vars)
+        {
+            Use(variable.GetInt32Property("m_nEditorNodeID", -1));
+        }
+
+        foreach (var bank in TempVarBanks)
+        {
+            foreach (var tempVar in bank.GetArray("m_TempVars") ?? [])
+            {
+                Use(tempVar.GetInt32Property("m_nEditorNodeID", -1));
+            }
+        }
+
+        foreach (var callInfo in CallInfos)
+        {
+            Use(callInfo.EditorNode);
+            Use(callInfo.CallMethodId);
+        }
+
+        foreach (var chunk in Chunks)
+        {
+            foreach (var debugInfo in chunk.DebugInfos)
+            {
+                Use(debugInfo.FlowNode);
+                Use(debugInfo.ValueNode);
+            }
+
+            foreach (var register in chunk.Registers)
+            {
+                Use(register.OriginNode);
+            }
+        }
+
+        foreach (var connection in OutputConnections)
+        {
+            Use(connection.EntFireNode);
+        }
+
+        return lastUsed + 1;
+    }
 
     /// <summary>Every outflow of a cell, found by shape anywhere in its data.</summary>
     public IReadOnlyList<PulseOutflow> Outflows(int cell) => GetCellOutflows(cell).Outflows;
