@@ -1,5 +1,6 @@
 using System.Linq;
 using ValveKeyValue;
+using ValveResourceFormat.Graphs.Pulse;
 using ValveResourceFormat.Serialization.KeyValues;
 
 namespace ValveResourceFormat.Graphs;

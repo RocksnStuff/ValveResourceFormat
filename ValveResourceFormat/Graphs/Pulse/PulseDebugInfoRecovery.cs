@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Linq;
 using ValveResourceFormat.Serialization.KeyValues;
 
-namespace ValveResourceFormat.Graphs;
+namespace ValveResourceFormat.Graphs.Pulse;
 
 /// <summary>
 /// Guesses the debug info of chunks compiled without it, so <see cref="PulseGraphWalker"/> can rebuild their editor nodes.
