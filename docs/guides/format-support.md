@@ -424,7 +424,7 @@ decompiled `.vpulse` document back into the same bytecode except for the limitat
 | Skipped nodes                            | Not in compiled files | A skipped node compiles to nothing. A skipped entity fire is rebuilt from the output connection it lists, without its parameter value. Nodes after a skipped entry point are lost.                                                                 |
 | Text expression debug ids                | Not in compiled files | Parts of a text expression get new node ids, so a recompiled graph differs in those debug ids only.                                                                                                                                                |
 | Node positions                           | Not in compiled files | Nodes are placed by an automatic layout.                                                                                                                                                                                                           |
-| Chunks without debug info                | Not in compiled files | The editor nodes are guessed from the shape of the instructions. Nodes get new ids where the graph keeps none, and variables are read inline rather than through Var Reference nodes. Only tested on shipped graphs with their debug info removed. |
+| Chunks without debug info                | Not in compiled files | The editor nodes are guessed from the shape of the instructions. Nodes get new ids where the graph keeps none, and variables are read inline rather than through Var Reference nodes. A switch with a single case comes back as an If. Only tested on shipped and hand-built graphs with their debug info removed. |
 
 ## Per-Game Notes
 

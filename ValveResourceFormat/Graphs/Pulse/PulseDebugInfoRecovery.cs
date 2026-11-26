@@ -839,11 +839,12 @@ internal sealed class PulseDebugInfoRecovery
                 return;
             }
 
-            // A function whose results are read is a value node, unless it is named for an action
+            // A function whose results are read is a value node, unless a later flow node reads them too
             var funcName = Binding(instruction).FuncName;
-            var firstOutput = registerMap.OutParams.Select(static param => param.Register).FirstOrDefault(IsRead, -1);
+            var outputs = registerMap.OutParams.Select(static param => param.Register).Where(IsRead).ToList();
+            var firstOutput = outputs.FirstOrDefault(-1);
 
-            if (firstOutput >= 0 && !IsActionFunction(funcName))
+            if (firstOutput >= 0 && !IsReadAfterFlow(index, outputs))
             {
                 // A value node is invoked again for each node reading it, into the same result register
                 if (!valueInvokeNodes.TryGetValue((funcName, firstOutput), out var node))
@@ -860,26 +861,39 @@ internal sealed class PulseDebugInfoRecovery
             flowNodes[index] = KnownOrFreshNodeId(LiteralConsumer(index, registerMap.InParams.Select(static param => param.Register)));
         }
 
-        // Steps such as PlayUISoundEvent return a handle the graph may store, so a read result does not make them values
-        private static readonly string[] ActionVerbs =
-        [
-            "Add", "Apply", "Create", "Destroy", "Disable", "Drop", "Emit", "Enable", "Fire", "Force", "Give", "Hide", "Kill",
-            "Load", "Play", "Remove", "Reset", "Send", "Set", "Show", "Spawn", "Start", "Stop", "Tag", "Take", "Teleport", "Toggle", "Trigger",
-        ];
-
-        private static bool IsActionFunction(string funcName)
+        // A value node is invoked again for each node reading it, so only a step's result outlives the next flow node
+        private bool IsReadAfterFlow(int index, IEnumerable<int> outputs)
         {
-            var separator = funcName.LastIndexOf("::", StringComparison.Ordinal);
-            var method = separator >= 0 ? funcName[(separator + 2)..] : funcName;
+            var pending = outputs.ToHashSet();
+            var passedFlow = false;
 
-            // Functions returning a bool are prefixed with B, as in BLoadLayoutSnippet
-            if (method.Length > 1 && method[0] == 'B' && char.IsUpper(method[1]))
+            for (var i = index + 1; i < instructions.Count && pending.Count > 0; i++)
             {
-                method = method[1..];
+                if (passedFlow && Reads(instructions[i]).Any(pending.Contains))
+                {
+                    return true;
+                }
+
+                pending.ExceptWith(Writes(instructions[i]));
+                passedFlow |= IsFlowInstruction(i);
             }
 
-            return ActionVerbs.Any(verb => method.StartsWith(verb, StringComparison.Ordinal)
-                && (method.Length == verb.Length || char.IsUpper(method[verb.Length])));
+            return false;
+        }
+
+        // Instructions no value node compiles to, so they belong to a flow node
+        private bool IsFlowInstruction(int index)
+        {
+            var instruction = instructions[index];
+
+            return instruction.Code switch
+            {
+                PulseInstructionCode.NOP or PulseInstructionCode.JUMP or PulseInstructionCode.IMMEDIATE_HALT or PulseInstructionCode.DETACH_REGISTER => false,
+                PulseInstructionCode.JUMP_COND => valueNodes[index] < 0,
+                PulseInstructionCode.LIBRARY_INVOKE => !Binding(instruction).RegisterMap.OutParams.Any(param => IsRead(param.Register)),
+                PulseInstructionCode.CELL_INVOKE => PulseHues.CategoryOf(definition.CellClass(Binding(instruction).CellIndex)) != PulseCategory.ValueCell,
+                var code => !ComputesValue(code),
+            };
         }
 
         // A branch running a flow reached from several places calls it, the call naming the branching node and its outflow
