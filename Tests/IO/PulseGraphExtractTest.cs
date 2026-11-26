@@ -49,7 +49,7 @@ namespace Tests.IO
             await ValidOutput.VerifyText(text, name, "decompiled.vpulse");
         }
 
-        // Without debug info the editor nodes are guessed, so recompiling may give different bytecode
+        // Without debug info the editor nodes are inferred, so recompiling may give different bytecode
         [Test]
         [Arguments("pulse_native_nodes.vpulse_c")]
         [Arguments("bobb_test.vpulse_c")]

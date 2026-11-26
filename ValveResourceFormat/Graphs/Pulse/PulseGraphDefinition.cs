@@ -317,7 +317,7 @@ internal sealed class PulseChunk
         }
     }
 
-    /// <summary>Replaces the debug info and registers of a chunk without debug info with guessed ones.</summary>
+    /// <summary>Replaces the debug info and registers of a chunk without debug info with inferred ones.</summary>
     /// <param name="recoveredDebugInfos">Debug info of every instruction.</param>
     /// <param name="recoveredRegisters">Every register, with the origins the compiler would have given them.</param>
     public void SetRecoveredDebugInfo(PulseInstructionDebug[] recoveredDebugInfos, IEnumerable<PulseRegister> recoveredRegisters)

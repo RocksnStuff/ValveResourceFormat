@@ -12,7 +12,7 @@ namespace ValveResourceFormat.IO;
 /// </summary>
 /// <remarks>
 /// The editor nodes are rebuilt from the debug info every instruction keeps. For chunks compiled without it, they are
-/// guessed from the shape of the instructions, which compiles to the same behavior but not always to the same bytecode.
+/// guessed from the shape of the instructions, producing a graph which is functionally identical.
 /// </remarks>
 public sealed class PulseGraphExtract
 {

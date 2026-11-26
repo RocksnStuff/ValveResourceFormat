@@ -5,7 +5,8 @@ using ValveResourceFormat.Serialization.KeyValues;
 namespace ValveResourceFormat.Graphs.Pulse;
 
 /// <summary>
-/// Guesses the debug info of chunks compiled without it, so <see cref="PulseGraphWalker"/> can rebuild their editor nodes.
+/// Infers the debug info of chunks compiled without it using reliable guesses,
+/// so <see cref="PulseGraphWalker"/> can rebuild their editor nodes.
 /// </summary>
 /// <remarks>
 /// Instructions are grouped into editor nodes by the shapes the compiler emits: a loop by its back edge, a switch by its
@@ -52,7 +53,7 @@ internal sealed class PulseDebugInfoRecovery
         {
             if (!definition.Chunks[i].HasDebugInfo)
             {
-                definition.Report($"Chunk {i} has no debug info, its editor nodes are guessed from the shape of its instructions.");
+                definition.Report($"Chunk {i} has no debug info, its editor nodes are inferred from the shape of its instructions.");
 
                 var chunk = new ChunkRecovery(recovery, i);
                 chunk.Recover();
